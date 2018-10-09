@@ -1,5 +1,7 @@
 .idea
 
+.eslintrc.*
+
 lib-cov
 *.seed
 *.log
