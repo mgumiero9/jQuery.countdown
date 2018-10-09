@@ -1,15 +1,8 @@
 // AMD support (Thanks to @FagnerMartinsBrack)
-;(function(factory) {
+(function($){
   'use strict';
-
-  if (typeof define === 'function' && define.amd) {
-    define(['jquery'], factory);
-  } else {
-    factory(jQuery);
-  }
-})(function($){
-  'use strict';
-
+  
+  var newTotalSecsLeft;
   var instances = [],
       matchers  = [],
       defaultOptions  = {
@@ -17,7 +10,7 @@
         elapse: false,
         defer: false
       };
-  // Miliseconds
+  // Milliseconds
   matchers.push(/^[0-9]*$/.source);
   // Month/Day/Year [hours:minutes:seconds]
   matchers.push(/([0-9]{1,2}\/){2}[0-9]{4}( [0-9]{1,2}(:[0-9]{2}){2})?/
@@ -29,31 +22,9 @@
   // Cast the matchers to a regular expression object
   matchers = new RegExp(matchers.join('|'));
   // Parse a Date formatted has String to a native object
-  function parseDateString(dateString) {
-    // Pass through when a native object is sent
-    if(dateString instanceof Date) {
-      return dateString;
-    }
-    // Caste string to date object
-    if(String(dateString).match(matchers)) {
-      // If looks like a milisecond value cast to number before
-      // final casting (Thanks to @msigley)
-      if(String(dateString).match(/^[0-9]*$/)) {
-        dateString = Number(dateString);
-      }
-      // Replace dashes to slashes
-      if(String(dateString).match(/\-/)) {
-        dateString = String(dateString).replace(/\-/g, '/');
-      }
-      return new Date(dateString);
-    } else {
-      throw new Error('Couldn\'t cast `' + dateString +
-        '` to a date object.');
-    }
-  }
+
   // Map to convert from a directive to offset object property
   var DIRECTIVE_KEY_MAP = {
-    'Y': 'years',
     'm': 'months',
     'n': 'daysToMonth',
     'd': 'daysToWeek',
@@ -131,7 +102,7 @@
     }
   }
   // The Final Countdown
-  var Countdown = function(el, finalDate, options) {
+  var Countdown = function(el, secondsToFinish, options) {
     this.el       = el;
     this.$el      = $(el);
     this.interval = null;
@@ -154,15 +125,15 @@
       // Register the callbacks when supplied
       if(typeof options === 'function') {
         this.$el.on('update.countdown', options);
-        this.$el.on('stoped.countdown', options);
+        this.$el.on('stopped.countdown', options);
         this.$el.on('finish.countdown', options);
       } else {
         this.options = $.extend({}, defaultOptions, options);
       }
     }
-    // Set the final date and start
-    this.setFinalDate(finalDate);
-    // Starts the countdown automatically unless it's defered,
+    // Set the secondsToFinish and start
+    this.setSecondsToFinish(secondsToFinish);
+    // Starts the countdown automatically unless it's deferred,
     // Issue #198
     if (this.options.defer === false) {
       this.start();
@@ -203,8 +174,9 @@
       // Reset the countdown instance under data attr (Thanks to @assiotis)
       delete this.$el.data().countdownInstance;
     },
-    setFinalDate: function(value) {
-      this.finalDate = parseDateString(value); // Cast the given date
+    setSecondsToFinish: function(value) {
+      this.secondsToFinish = parseInt(value); // Cast the given secondsToFinish;
+      newTotalSecsLeft = this.secondsToFinish;
     },
     update: function() {
       // Stop if dom is not in the html (Thanks to @dleavitt)
@@ -212,12 +184,9 @@
         this.remove();
         return;
       }
-      var now = new Date(),
-          newTotalSecsLeft;
-      // Create an offset date object
-      newTotalSecsLeft = this.finalDate.getTime() - now.getTime(); // Millisecs
-      // Calculate the remaining time
-      newTotalSecsLeft = Math.ceil(newTotalSecsLeft / 1000); // Secs
+      newTotalSecsLeft -= (defaultOptions.precision / 1000);
+      // newTotalSecsLeft = Math.ceil(newTotalSecsLeft);
+
       // If is not have to elapse set the finish
       newTotalSecsLeft = !this.options.elapse && newTotalSecsLeft < 0 ? 0 :
         Math.abs(newTotalSecsLeft);
@@ -230,10 +199,10 @@
         this.totalSecsLeft = newTotalSecsLeft;
       }
       // Check if the countdown has elapsed
-      this.elapsed = (now >= this.finalDate);
+      this.elapsed = (newTotalSecsLeft <= 0);
       // Calculate the offsets
       this.offset = {
-        seconds     : this.totalSecsLeft % 60,
+        seconds     : Math.trunc(this.totalSecsLeft % 60),
         minutes     : Math.floor(this.totalSecsLeft / 60) % 60,
         hours       : Math.floor(this.totalSecsLeft / 60 / 60) % 24,
         days        : Math.floor(this.totalSecsLeft / 60 / 60 / 24) % 7,
@@ -242,7 +211,6 @@
         weeks       : Math.floor(this.totalSecsLeft / 60 / 60 / 24 / 7),
         weeksToMonth: Math.floor(this.totalSecsLeft / 60 / 60 / 24 / 7) % 4,
         months      : Math.floor(this.totalSecsLeft / 60 / 60 / 24 / 30.4368),
-        years       : Math.abs(this.finalDate.getFullYear()-now.getFullYear()),
         totalDays   : Math.floor(this.totalSecsLeft / 60 / 60 / 24),
         totalHours  : Math.floor(this.totalSecsLeft / 60 / 60),
         totalMinutes: Math.floor(this.totalSecsLeft / 60),
@@ -258,10 +226,10 @@
     },
     dispatchEvent: function(eventName) {
       var event = $.Event(eventName + '.countdown');
-      event.finalDate     = this.finalDate;
-      event.elapsed       = this.elapsed;
-      event.offset        = $.extend({}, this.offset);
-      event.strftime      = strftime(this.offset);
+      event.secondsToFinish   = this.secondsToFinish;
+      event.elapsed           = this.elapsed;
+      event.offset            = $.extend({}, this.offset);
+      event.strftime          = strftime(this.offset);
       this.$el.trigger(event);
     }
   });
@@ -281,7 +249,7 @@
           instance[method].apply(instance, argumentsArray.slice(1));
         // If method look like a date try to set a new final date
         } else if(String(method).match(/^[$A-Z_][0-9A-Z_$]*$/i) === null) {
-          instance.setFinalDate.call(instance, method);
+          instance.setSecondsToFinish.call(instance, method);
           // Allow plugin to restart after finished
           // Fix issue #38 (thanks to @yaoazhen)
           instance.start();
@@ -295,4 +263,4 @@
       }
     });
   };
-});
+})($);
