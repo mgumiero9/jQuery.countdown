@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Countdown by seconds</title>
+</head>
+<body>
+  <div class="countdown">
+    timer element
+  </div>
+</body>
+</html>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+<script src="countdown.js"></script>
+<script type="text/javascript">
+  $('.countdown').countdown(10, function(event) {
+    $(this).html(event.strftime('%H:%M:%S'));
+  }).on('finish.countdown', function(event) {
+    console.log('TCL: event');
+  });
+</script>
